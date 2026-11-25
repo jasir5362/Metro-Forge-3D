@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MetroForge 3D — City Builder & Macroeconomic Simulation</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; user-select: none; }
+    body { overflow: hidden; background: #0f172a; color: #f8fafc; }
+    #canvas-container { position: fixed; inset: 0; z-index: 1; }
+
+    /* Top HUD */
+    #top-bar {
+      position: fixed; top: 12px; left: 12px; right: 12px; z-index: 10;
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between;
+      background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px);
+      border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 12px; padding: 10px 16px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+    }
+    .brand { font-weight: 800; font-size: 1.05rem; letter-spacing: 0.5px; color: #38bdf8; display: flex; align-items: center; gap: 8px; }
+    .stats-group { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+    .stat-pill {
+      background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(148, 163, 184, 0.15);
+      padding: 5px 11px; border-radius: 8px; font-size: 0.82rem; display: flex; align-items: center; gap: 6px;
+    }
+    .stat-val { font-weight: 700; color: #f1f5f9; }
+    .pos { color: #4ade80; }
+    .neg { color: #f87171; }
+    .controls-group { display: flex; gap: 6px; align-items: center; }
+    button.hud-btn {
+      background: rgba(30, 41, 59, 0.9); color: #e2e8f0; border: 1px solid rgba(148, 163, 184, 0.25);
+      padding: 6px 11px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 600; transition: all 0.15s;
+    }
+    button.hud-btn:hover { background: #334155; border-color: #38bdf8; }
+    button.hud-btn.active { background: #0284c7; border-color: #38bdf8; color: #fff; }
+
+    /* Bottom Build Dock */
+    #bottom-dock {
+      position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 10;
+      background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(12px);
+      border: 1px solid rgba(148, 163, 184, 0.22); border-radius: 14px; padding: 10px 14px;
+      display: flex; flex-direction: column; gap: 8px; max-width: 96vw;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+    }
+    .cat-tabs { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+    .cat-tab {
+      background: transparent; color: #94a3b8; border: 1px solid transparent;
+      padding: 4px 10px; border-radius: 6px; font-size: 0.76rem; font-weight: 700; cursor: pointer;
+    }
+    .cat-tab.active { background: rgba(56, 189, 248, 0.18); color: #38bdf8; border-color: rgba(56, 189, 248, 0.4); }
+    .tools-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; justify-content: center; flex-wrap: wrap; }
+    .tool-btn {
+      background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 9px; padding: 7px 11px; color: #f8fafc; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; min-width: 86px; transition: all 0.15s;
+    }
+    .tool-btn:hover { transform: translateY(-2px); border-color: #38bdf8; }
+    .tool-btn.selected { background: rgba(2, 132, 199, 0.35); border-color: #38bdf8; box-shadow: 0 0 12px rgba(56,189,248,0.35); }
+    .tool-icon { font-size: 1.15rem; margin-bottom: 2px; }
+    .tool-name { font-size: 0.74rem; font-weight: 600; }
+    .tool-cost { font-size: 0.68rem; color: #94a3b8; }
+
+    /* Inspector Card */
+    #inspector {
+      position: fixed; right: 14px; top: 76px; width: 270px; z-index: 10;
+      background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(12px);
+      border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 14px;
+      display: none; flex-direction: column; gap: 8px; font-size: 0.82rem;
+    }
+    #inspector h3 { font-size: 0.95rem; color: #38bdf8; display: flex; justify-content: space-between; }
+    .insp-row { display: flex; justify-content: space-between; color: #cbd5e1; border-bottom: 1px solid rgba(148,163,184,0.1); padding-bottom: 4px; }
+
+    /* Economy Modal */
+    #economy-modal {
+      position: fixed; inset: 0; z-index: 30; background: rgba(2, 6, 23, 0.72); backdrop-filter: blur(6px);
+      display: none; align-items: center; justify-content: center; padding: 16px;
+    }
+    .modal-card {
+      background: #0f172a; border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 16px;
+      width: 100%; max-width: 860px; max-height: 88vh; overflow-y: auto; padding: 20px;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.6);
+    }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; padding-bottom: 12px; margin-bottom: 16px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+    .panel { background: #1e293b; border-radius: 12px; padding: 14px; border: 1px solid rgba(148,163,184,0.12); }
+    .panel h4 { color: #38bdf8; margin-bottom: 10px; font-size: 0.9rem; }
+    .slider-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; font-size: 0.8rem; }
+    .slider-row label { display: flex; justify-content: space-between; color: #cbd5e1; }
+    input[type=range] { width: 100%; accent-color: #38bdf8; }
+    .comm-card { display: flex; justify-content: space-between; align-items: center; background: #0f172a; padding: 9px 11px; border-radius: 8px; margin-bottom: 8px; }
+    #toast {
+      position: fixed; top: 72px; left: 50%; transform: translateX(-50%); z-index: 25;
+      background: rgba(15, 23, 42, 0.92); border: 1px solid #38bdf8; color: #f8fafc;
+      padding: 7px 16px; border-radius: 20px; font-size: 0.8rem; opacity: 0; pointer-events: none; transition: opacity 0.25s;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div id="top-bar">
+    <div class="brand">🏙️ METROFORGE 3D <span style="font-size:0.72rem;color:#94a3b8;font-weight:500;">MACRO EDITION</span></div>
+    <div class="stats-group">
+      <div class="stat-pill">💰 <span class="stat-val" id="stat-cash">$250,000</span> <span id="stat-net" class="pos">(+$0/mo)</span></div>
+      <div class="stat-pill">👥 Pop: <span class="stat-val" id="stat-pop">0</span></div>
+      <div class="stat-pill">😊 <span class="stat-val" id="stat-happy">85%</span></div>
+      <div class="stat-pill">⚡ <span class="stat-val" id="stat-power">0/0 MW</span></div>
+      <div class="stat-pill">💧 <span class="stat-val" id="stat-water">0/0 kL</span></div>
+      <div class="stat-pill">📈 GDP/Cap: <span class="stat-val" id="stat-gdp">$42,000</span></div>
+      <div class="stat-pill">📅 <span class="stat-val" id="stat-date">Jan 2026</span></div>
+    </div>
+    <div class="controls-group">
+      <button class="hud-btn" id="btn-economy">📊 Economy & Trade</button>
+      <button class="hud-btn" id="btn-weather">☀️ Clear</button>
+      <button class="hud-btn" id="btn-speed">▶️ 1x</button>
+      <button class="hud-btn" id="btn-save">💾 Save</button>
+      <button class="hud-btn" id="btn-export">📤 JSON</button>
+      <button class="hud-btn" id="btn-reset">🗺️ New City</button>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <div id="inspector">
+    <h3><span id="insp-title">Entity</span> <span style="cursor:pointer;color:#94a3b8;" onclick="UIManager.closeInspector()">✕</span></h3>
+    <div id="insp-body"></div>
+    <button class="hud-btn" id="insp-follow-btn" style="display:none;margin-top:6px;">🎥 Street Follow Cam</button>
+  </div>
+
+  <div id="bottom-dock">
+    <div class="cat-tabs" id="cat-tabs"></div>
+    <div class="tools-row" id="tools-row"></div>
+  </div>
+
+  <div id="economy-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>🌐 Macroeconomic Policy, Public Budget & Commodity Exchange</h2>
+        <button class="hud-btn" onclick="UIManager.toggleEconomy(false)">✕ Close</button>
+      </div>
+      <div class="grid-2">
+        <div class="panel">
+          <h4>🏛️ Fiscal & Monetary Policy</h4>
+          <div class="slider-row">
+            <label><span>Residential Tax Rate</span><span id="lbl-tax-r">9%</span></label>
+            <input type="range" min="1" max="25" value="9" oninput="EconomyEngine.setTax('R', this.value)" />
+          </div>
+          <div class="slider-row">
+            <label><span>Commercial Tax Rate</span><span id="lbl-tax-c">11%</span></label>
+            <input type="range" min="1" max="25" value="11" oninput="EconomyEngine.setTax('C', this.value)" />
+          </div>
+          <div class="slider-row">
+            <label><span>Industrial Tax Rate</span><span id="lbl-tax-i">12%</span></label>
+            <input type="range" min="1" max="25" value="12" oninput="EconomyEngine.setTax('I', this.value)" />
+          </div>
+          <div class="slider-row">
+            <label><span>Central Bank Interest Rate</span><span id="lbl-rate">4.5%</span></label>
+            <input type="range" min="0.5" max="15" step="0.5" value="4.5" oninput="EconomyEngine.setInterest(this.value)" />
+          </div>
+          <div class="slider-row">
+            <label><span>Public Services & Healthcare Funding</span><span id="lbl-fund">100%</span></label>
+            <input type="range" min="50" max="150" step="5" value="100" oninput="EconomyEngine.setFunding(this.value)" />
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button class="hud-btn" onclick="EconomyEngine.issueBond()">🏦 Issue $50k Municipal Bond</button>
+            <button class="hud-btn" onclick="EconomyEngine.repayBond()">💸 Repay $50k Bond</button>
+          </div>
+          <div id="macro-summary" style="margin-top:12px;font-size:0.8rem;color:#94a3b8;line-height:1.5;"></div>
+        </div>
+        <div class="panel">
+          <h4>📦 Global Commodities & Futures Market</h4>
+          <div id="commodities-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ============================================================================
+       1. CONFIG & CATALOG
+    ============================================================================ */
+    const Config = {
+      GRID_SIZE: 24,
+      TILE_SIZE: 4,
+      CATEGORIES: ['Transit', 'Zones', 'Utilities', 'Civic & Emergency', 'Global Macro', 'Tools'],
+      TOOLS: {
+        road:       { cat: 'Transit', name: 'Asphalt Road', icon: '🛣️', cost: 150, upkeep: 5, power: 0, water: 0, color: 0x334155 },
+        bus:        { cat: 'Transit', name: 'Bus Terminal', icon: '🚏', cost: 3500, upkeep: 120, power: 10, water: 5, color: 0x0284c7 },
+        port:       { cat: 'Transit', name: 'Freight Port', icon: '🚢', cost: 12000, upkeep: 400, power: 35, water: 20, color: 0x0369a1 },
+        res:        { cat: 'Zones', name: 'Residential', icon: '🏘️', cost: 600, upkeep: 0, power: 8, water: 8, color: 0x22c55e },
+        com:        { cat: 'Zones', name: 'Commercial', icon: '🏢', cost: 900, upkeep: 0, power: 14, water: 10, color: 0x3b82f6 },
+        ind:        { cat: 'Zones', name: 'Industrial', icon: '🏭', cost: 1200, upkeep: 0, power: 25, water: 20, color: 0xeab308 },
+        park:       { cat: 'Zones', name: 'City Park', icon: '🌳', cost: 800, upkeep: 30, power: 2, water: 6, color: 0x16a34a },
+        wind:       { cat: 'Utilities', name: 'Wind Turbine', icon: '🌬️', cost: 4000, upkeep: 90, power: -60, water: 0, color: 0xe2e8f0 },
+        solar:      { cat: 'Utilities', name: 'Solar Farm', icon: '☀️', cost: 6500, upkeep: 110, power: -95, water: 0, color: 0x1d4ed8 },
+        coal:       { cat: 'Utilities', name: 'Thermal Plant', icon: '⚡', cost: 9500, upkeep: 320, power: -220, water: 15, color: 0x475569 },
+        water:      { cat: 'Utilities', name: 'Eco Water Plant', icon: '💧', cost: 4500, upkeep: 110, power: 15, water: -180, color: 0x06b6d4 },
+        police:     { cat: 'Civic & Emergency', name: 'Police HQ', icon: '🚓', cost: 5000, upkeep: 220, power: 15, water: 10, color: 0x1e40af },
+        fire:       { cat: 'Civic & Emergency', name: 'Fire Station', icon: '🚒', cost: 5000, upkeep: 220, power: 15, water: 20, color: 0xdc2626 },
+        hospital:   { cat: 'Civic & Emergency', name: 'Metro Hospital', icon: '🏥', cost: 11000, upkeep: 480, power: 40, water: 35, color: 0xf8fafc },
+        university: { cat: 'Civic & Emergency', name: 'University', icon: '🎓', cost: 14000, upkeep: 520, power: 45, water: 30, color: 0x7c3aed },
+        bank:       { cat: 'Global Macro', name: 'Reserve Bank', icon: '🏛️', cost: 18000, upkeep: 600, power: 50, water: 25, color: 0xf59e0b },
+        trade:      { cat: 'Global Macro', name: 'Global Trade Hub', icon: '🌐', cost: 22000, upkeep: 750, power: 65, water: 30, color: 0x10b981 },
+        bulldoze:   { cat: 'Tools', name: 'Bulldoze', icon: '🚜', cost: 50, upkeep: 0, power: 0, water: 0, color: 0xef4444 },
+        inspect:    { cat: 'Tools', name: 'Inspect', icon: '🔍', cost: 0, upkeep: 0, power: 0, water: 0, color: 0x38bdf8 }
+      }
+    };
+
+    /* ============================================================================
+       2. ECONOMY ENGINE
+    ============================================================================ */
+    const EconomyEngine = {
+      cash: 250000,
+      debt: 0,
+      tax: { R: 9, C: 11, I: 12 },
+      interestRate: 4.5,
+      funding: 100,
+      inflation: 2.1,
+      gdpPerCapita: 42000,
+      unemployment: 4.2,
+      creditRating: 'AAA',
+      monthIndex: 0,
+      netMonthly: 0,
+      commodities: [
+        { id: 'energy', name: 'Megawatt Grid Futures', price: 78, owned: 0, history: [72, 74, 73, 76, 75, 78] },
+        { id: 'goods',  name: 'Manufactured Goods',    price: 145, owned: 0, history: [140, 142, 139, 144, 146, 145] },
+        { id: 'alloys', name: 'Refined Structural Alloys', price: 210, owned: 0, history: [205, 208, 212, 209, 211, 210] }
+      ],
+      setTax(zone, val) {
+        this.tax[zone] = Number(val);
+        document.getElementById('lbl-tax-' + zone.toLowerCase()).textContent = val + '%';
+      },
+      setInterest(val) {
+        this.interestRate = Number(val);
+        document.getElementById('lbl-rate').textContent = val + '%';
+      },
+      setFunding(val) {
+        this.funding = Number(val);
+        document.getElementById('lbl-fund').textContent = val + '%';
+      },
+      issueBond() {
+        this.cash += 50000;
+        this.debt += 50000;
+        this.updateRating();
+        UIManager.toast('Issued $50,000 Municipal Bond');
+        UIManager.refreshEconomyModal();
+      },
+      repayBond() {
+        if (this.debt <= 0) return UIManager.toast('No outstanding debt.');
+        if (this.cash < 50000) return UIManager.toast('Insufficient treasury funds.');
+        this.cash -= 50000;
+        this.debt -= 50000;
+        this.updateRating();
+        UIManager.toast('Repaid $50,000 Municipal Bond');
+        UIManager.refreshEconomyModal();
+      },
+      updateRating() {
+        if (this.debt === 0) this.creditRating = 'AAA';
+        else if (this.debt <= 100000) this.creditRating = 'AA+';
+        else if (this.debt <= 250000) this.creditRating = 'A';
+        else this.creditRating = 'BBB';
+      },
+      tradeCommodity(id, delta) {
+        const c = this.commodities.find(x => x.id === id);
+        if (!c) return;
+        const unitBatch = 10;
+        const total = c.price * unitBatch;
+        if (delta > 0) {
+          if (this.cash < total) return UIManager.toast('Insufficient cash to buy futures.');
+          this.cash -= total;
+          c.owned += unitBatch;
+        } else {
+          if (c.owned < unitBatch) return UIManager.toast('No contracts to sell.');
+          this.cash += total;
+          c.owned -= unitBatch;
+        }
+        UIManager.refreshEconomyModal();
+      },
+      tickMonth(stats) {
+        this.monthIndex++;
+        // Commodity market fluctuation
+        this.commodities.forEach(c => {
+          const drift = (Math.random() - 0.48) * (c.price * 0.08);
+          c.price = Math.max(20, Math.round((c.price + drift) * 10) / 10);
+          c.history.push(c.price);
+          if (c.history.length > 12) c.history.shift();
+        });
+
+        const taxRev = Math.round(
+          stats.pop * 14 * (this.tax.R / 10) +
+          stats.comCount * 320 * (this.tax.C / 10) +
+          stats.indCount * 450 * (this.tax.I / 10) +
+          stats.tradeCount * 1200 +
+          stats.bankCount * 950
+        );
+        const upkeep = Math.round(stats.totalUpkeep * (this.funding / 100));
+        const debtInterest = Math.round((this.debt * (this.interestRate / 100)) / 12);
+        this.netMonthly = taxRev - upkeep - debtInterest;
+        this.cash += this.netMonthly;
+
+        this.inflation = Math.max(0.5, Math.round((2.0 + (10 - this.interestRate) * 0.25 + (Math.random() - 0.5) * 0.4) * 10) / 10);
+        this.gdpPerCapita = Math.round(42000 + stats.uniCount * 3500 + stats.tradeCount * 4200 + stats.comCount * 450 - this.tax.C * 300);
+        this.unemployment = Math.max(1.8, Math.min(18, Math.round((6.5 - (stats.comCount + stats.indCount) * 0.15 + this.tax.I * 0.1) * 10) / 10));
+      }
+    };
+
+    /* ============================================================================
+       3. WORLD GRID & PROCEDURAL CITY
+    ============================================================================ */
+    const WorldGrid = {
+      tiles: [],
+      init(preset = 'riverside') {
+        this.tiles = [];
+        const N = Config.GRID_SIZE;
+        for (let z = 0; z < N; z++) {
+          const row = [];
+          for (let x = 0; x < N; x++) {
+            let terrain = 'grass';
+            const riverCenter = Math.floor(N * 0.68 + Math.sin(z * 0.35) * 2.2);
+            if (preset === 'riverside' && Math.abs(x - riverCenter) <= 1) {
+              terrain = 'water';
+            }
+            row.push({ x, z, terrain, building: null, level: 1, mesh: null });
+          }
+          this.tiles.push(row);
+        }
+        if (preset === 'riverside') this.seedStarterCity();
+      },
+      seedStarterCity() {
+        const set = (x, z, type, lvl = 1) => {
+          const t = this.get(x, z);
+          if (!t) return;
+          t.building = type;
+          t.level = lvl;
+        };
+        for (let x = 4; x <= 19; x++) set(x, 10, 'road');
+        for (let z = 5; z <= 16; z++) { set(7, z, 'road'); set(12, z, 'road'); }
+        set(5, 6, 'wind'); set(5, 8, 'solar'); set(5, 12, 'water');
+        set(8, 7, 'res', 2); set(9, 7, 'res', 2); set(10, 7, 'res', 1); set(11, 7, 'park');
+        set(8, 9, 'com', 2); set(9, 9, 'com', 2); set(10, 9, 'bank', 1); set(11, 9, 'hospital', 1);
+        set(8, 12, 'res', 2); set(9, 12, 'res', 1); set(10, 12, 'university', 1); set(11, 12, 'police', 1);
+        set(13, 8, 'ind', 2); set(14, 8, 'ind', 1); set(13, 12, 'fire', 1); set(14, 12, 'trade', 1);
+      },
+      get(x, z) {
+        if (x < 0 || z < 0 || x >= Config.GRID_SIZE || z >= Config.GRID_SIZE) return null;
+        return this.tiles[z][x];
+      },
+      computeStats() {
+        let pop = 0, powerSupply = 0, powerDemand = 0, waterSupply = 0, waterDemand = 0;
+        let totalUpkeep = 0, comCount = 0, indCount = 0, tradeCount = 0, bankCount = 0, uniCount = 0, parkCount = 0, civicCount = 0;
+        for (let z = 0; z < Config.GRID_SIZE; z++) {
+          for (let x = 0; x < Config.GRID_SIZE; x++) {
+            const b = this.tiles[z][x].building;
+            const lvl = this.tiles[z][x].level;
+            if (!b) continue;
+            const cfg = Config.TOOLS[b];
+            totalUpkeep += cfg.upkeep;
+            if (cfg.power < 0) powerSupply += Math.abs(cfg.power); else powerDemand += cfg.power * lvl;
+            if (cfg.water < 0) waterSupply += Math.abs(cfg.water); else waterDemand += cfg.water * lvl;
+            if (b === 'res') pop += 120 * lvl;
+            if (b === 'com') comCount += lvl;
+            if (b === 'ind') indCount += lvl;
+            if (b === 'trade') tradeCount++;
+            if (b === 'bank') bankCount++;
+            if (b === 'university') uniCount++;
+            if (b === 'park') parkCount++;
+            if (['police', 'fire', 'hospital'].includes(b)) civicCount++;
+          }
+        }
+        const powerOk = powerSupply >= powerDemand;
+        const waterOk = waterSupply >= waterDemand;
+        let happy = 75 + parkCount * 2 + civicCount * 3 - Math.max(0, EconomyEngine.tax.R - 10) * 2;
+        if (!powerOk) happy -= 20;
+        if (!waterOk) happy -= 20;
+        happy = Math.max(15, Math.min(100, happy));
+        return { pop, powerSupply, powerDemand, waterSupply, waterDemand, totalUpkeep, comCount, indCount, tradeCount, bankCount, uniCount, happy, powerOk, waterOk };
+      }
+    };
+
+    /* ============================================================================
+       4. ENTITY MANAGER (NPC CITIZENS, MULTI-TYPE VEHICLES, SHIPS, BIRDS)
+    ============================================================================ */
+    const EntityManager = {
+      npcs: [],
+      vehicles: [],
+      birds: [],
+      followedEntity: null,
+      occupations: ['Software Architect', 'Civil Engineer', 'Macro Economist', 'ER Surgeon', 'Logistics Pilot', 'Grid Technician', 'Urban Planner', 'Port Inspector'],
+      clear(scene) {
+        [...this.npcs, ...this.vehicles, ...this.birds].forEach(e => scene.remove(e.mesh));
+        this.npcs = []; this.vehicles = []; this.birds = [];
+        this.followedEntity = null;
+      },
+      spawnInitial(scene) {
+        this.clear(scene);
+        // Spawn Pedestrian NPCs
+        for (let i = 0; i < 28; i++) this.spawnNPC(scene, i + 1);
+        // Spawn Vehicles (Sedans, Buses, Freight Semis, Emergency Units)
+        const types = ['sedan', 'sedan', 'bus', 'freight', 'police', 'fire', 'ambulance'];
+        for (let i = 0; i < 16; i++) this.spawnVehicle(scene, types[i % types.length]);
+        // Spawn River Cargo Ships
+        for (let i = 0; i < 2; i++) this.spawnShip(scene, i);
+        // Spawn Soaring Birds
+        for (let i = 0; i < 10; i++) this.spawnBird(scene);
+      },
+      gridToWorld(gx, gz) {
+        const half = (Config.GRID_SIZE * Config.TILE_SIZE) / 2;
+        return new THREE.Vector3(gx * Config.TILE_SIZE - half + Config.TILE_SIZE / 2, 0, gz * Config.TILE_SIZE - half + Config.TILE_SIZE / 2);
+      },
+      findRandomRoadTile() {
+        const roads = [];
+        for (let z = 0; z < Config.GRID_SIZE; z++) {
+          for (let x = 0; x < Config.GRID_SIZE; x++) {
+            if (WorldGrid.tiles[z][x].building === 'road') roads.push({ x, z });
+          }
+        }
+        return roads.length ? roads[Math.floor(Math.random() * roads.length)] : { x: 10, z: 10 };
+      },
+      spawnNPC(scene, id) {
+        const group = new THREE.Group();
+        const shirtColors = [0x38bdf8, 0xf43f5e, 0xa855f7, 0xf59e0b, 0x10b981, 0xe2e8f0];
+        const torso = new THREE.Mesh(
+          new THREE.BoxGeometry(0.28, 0.42, 0.18),
+          new THREE.MeshStandardMaterial({ color: shirtColors[id % shirtColors.length] })
+        );
+        torso.position.y = 0.55;
+        const head = new THREE.Mesh(
+          new THREE.SphereGeometry(0.14, 10, 10),
+          new THREE.MeshStandardMaterial({ color: 0xfcd34d })
+        );
+        head.position.y = 0.9;
+        const legL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.35, 0.1), new THREE.MeshStandardMaterial({ color: 0x1e293b }));
+        legL.position.set(-0.08, 0.18, 0);
+        const legR = legL.clone();
+        legR.position.x = 0.08;
+        group.add(torso, head, legL, legR);
+
+        const tile = this.findRandomRoadTile();
+        const pos = this.gridToWorld(tile.x, tile.z);
+        group.position.set(pos.x + 1.2, 0.2, pos.z + 1.2);
+        scene.add(group);
+
+        this.npcs.push({
+          kind: 'Citizen NPC',
+          id: 'CIT-' + String(1000 + id),
+          name: 'Citizen #' + (1000 + id),
+          occupation: this.occupations[id % this.occupations.length],
+          income: '$' + (48000 + (id * 3700) % 65000).toLocaleString() + '/yr',
+          activity: id % 2 === 0 ? 'Commuting to Commercial District' : 'Walking along Metro Sidewalk',
+          mesh: group, legL, legR,
+          gx: tile.x, gz: tile.z, dir: Math.floor(Math.random() * 4),
+          speed: 1.4 + Math.random() * 0.6, phase: Math.random() * 6
+        });
+      },
+      spawnVehicle(scene, vType) {
+        const group = new THREE.Group();
+        const specs = {
+          sedan:     { w: 0.7, h: 0.42, l: 1.3, color: [0xef4444, 0x3b82f6, 0xf8fafc, 0x94a3b8][Math.floor(Math.random()*4)], label: 'Commuter Sedan', speed: 5.5 },
+          bus:       { w: 0.85, h: 0.72, l: 2.2, color: 0x0284c7, label: 'Metro Rapid Bus', speed: 4.2 },
+          freight:   { w: 0.9, h: 0.85, l: 2.5, color: 0xd97706, label: 'Industrial Freight Semi', speed: 3.8 },
+          police:    { w: 0.72, h: 0.45, l: 1.35, color: 0x1e3a8a, label: 'Police Cruiser (Code-3)', speed: 7.5, emergency: true },
+          fire:      { w: 0.9, h: 0.8, l: 2.3, color: 0xdc2626, label: 'Fire Rescue Engine', speed: 7.0, emergency: true },
+          ambulance: { w: 0.8, h: 0.68, l: 1.8, color: 0xf8fafc, label: 'Metro Ambulance', speed: 7.4, emergency: true }
+        }[vType];
+
+        const body = new THREE.Mesh(
+          new THREE.BoxGeometry(specs.w, specs.h, specs.l),
+          new THREE.MeshStandardMaterial({ color: specs.color, roughness: 0.35 })
+        );
+        body.position.y = specs.h / 2 + 0.15;
+        body.castShadow = true;
+        group.add(body);
+
+        let lightBar = null;
+        if (specs.emergency) {
+          lightBar = new THREE.Mesh(
+            new THREE.BoxGeometry(specs.w * 0.7, 0.14, 0.25),
+            new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+          );
+          lightBar.position.set(0, specs.h + 0.22, 0);
+          group.add(lightBar);
+        }
+
+        const tile = this.findRandomRoadTile();
+        const pos = this.gridToWorld(tile.x, tile.z);
+        group.position.set(pos.x, 0.2, pos.z);
+        scene.add(group);
+
+        this.vehicles.push({
+          kind: 'Vehicle',
+          name: specs.label,
+          vType, lightBar,
+          mesh: group,
+          gx: tile.x, gz: tile.z,
+          dir: Math.floor(Math.random() * 4),
+          speed: specs.speed,
+          progress: 0
+        });
+      },
+      spawnShip(scene, idx) {
+        const group = new THREE.Group();
+        const hull = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.6, 3.8), new THREE.MeshStandardMaterial({ color: 0x1e293b }));
+        hull.position.y = 0.25;
+        const cargo = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.55, 2.2), new THREE.MeshStandardMaterial({ color: idx === 0 ? 0xe11d48 : 0x0284c7 }));
+        cargo.position.set(0, 0.75, -0.2);
+        group.add(hull, cargo);
+        const startZ = idx * 12 + 2;
+        const pos = this.gridToWorld(Math.floor(Config.GRID_SIZE * 0.68), startZ);
+        group.position.set(pos.x, 0.05, pos.z);
+        scene.add(group);
+        this.vehicles.push({
+          kind: 'Maritime Vessel',
+          name: idx === 0 ? 'MV Atlantic Container' : 'MV Metro Bulk Carrier',
+          vType: 'ship', mesh: group, gz: startZ, speed: 2.2
+        });
+      },
+      spawnBird(scene) {
+        const bird = new THREE.Mesh(
+          new THREE.ConeGeometry(0.18, 0.5, 4),
+          new THREE.MeshBasicMaterial({ color: 0xf8fafc })
+        );
+        bird.rotation.x = Math.PI / 2;
+        bird.position.set((Math.random() - 0.5) * 60, 14 + Math.random() * 8, (Math.random() - 0.5) * 60);
+        scene.add(bird);
+        this.birds.push({ mesh: bird, angle: Math.random() * Math.PI * 2, radius: 12 + Math.random() * 22, speed: 0.4 + Math.random() * 0.3 });
+      },
+      update(dt, time) {
+        const dirs = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+        // Animate NPCs
+        this.npcs.forEach(n => {
+          n.phase += dt * 8;
+          n.legL.rotation.x = Math.sin(n.phase) * 0.5;
+          n.legR.rotation.x = -Math.sin(n.phase) * 0.5;
+          const d = dirs[n.dir];
+          n.mesh.position.x += d[0] * n.speed * dt;
+          n.mesh.position.z += d[1] * n.speed * dt;
+          n.mesh.rotation.y = Math.atan2(d[0], d[1]);
+          if (Math.random() < dt * 0.6 || Math.abs(n.mesh.position.x) > 44 || Math.abs(n.mesh.position.z) > 44) {
+            n.dir = (n.dir + 1 + Math.floor(Math.random() * 2)) % 4;
+          }
+        });
+
+        // Animate Vehicles & Ships
+        this.vehicles.forEach(v => {
+          if (v.vType === 'ship') {
+            v.mesh.position.z += v.speed * dt;
+            const half = (Config.GRID_SIZE * Config.TILE_SIZE) / 2;
+            if (v.mesh.position.z > half) v.mesh.position.z = -half;
+            const gz = Math.max(0, Math.min(Config.GRID_SIZE - 1, Math.floor((v.mesh.position.z + half) / Config.TILE_SIZE)));
+            const riverX = Math.floor(Config.GRID_SIZE * 0.68 + Math.sin(gz * 0.35) * 2.2);
+            v.mesh.position.x = riverX * Config.TILE_SIZE - half + Config.TILE_SIZE / 2;
+            return;
+          }
+          if (v.lightBar) {
+            v.lightBar.material.color.setHex(Math.floor(time * 10) % 2 === 0 ? 0xef4444 : 0x38bdf8);
+          }
+          const d = dirs[v.dir];
+          v.progress += v.speed * dt;
+          const targetWorld = this.gridToWorld(v.gx + d[0], v.gz + d[1]);
+          const curWorld = this.gridToWorld(v.gx, v.gz);
+          const alpha = Math.min(1, v.progress / Config.TILE_SIZE);
+          v.mesh.position.lerpVectors(curWorld, targetWorld, alpha);
+          v.mesh.position.y = 0.2;
+          v.mesh.rotation.y = Math.atan2(d[0], d[1]);
+
+          if (v.progress >= Config.TILE_SIZE) {
+            v.progress = 0;
+            v.gx += d[0]; v.gz += d[1];
+            const validDirs = [];
+            dirs.forEach((cand, idx) => {
+              const nt = WorldGrid.get(v.gx + cand[0], v.gz + cand[1]);
+              if (nt && nt.building === 'road') validDirs.push(idx);
+            });
+            if (validDirs.length > 0) {
+              const nonReverse = validDirs.filter(idx => (idx + 2) % 4 !== v.dir);
+              const pool = nonReverse.length ? nonReverse : validDirs;
+              v.dir = pool[Math.floor(Math.random() * pool.length)];
+            } else {
+              const fallback = this.findRandomRoadTile();
+              v.gx = fallback.x; v.gz = fallback.z;
+            }
+          }
+        });
+
+        // Animate Birds
+        this.birds.forEach(b => {
+          b.angle += b.speed * dt;
+          b.mesh.position.x = Math.cos(b.angle) * b.radius;
+          b.mesh.position.z = Math.sin(b.angle) * b.radius;
+          b.mesh.rotation.y = -b.angle;
+        });
+      }
+    };
+
+    /* ============================================================================
+       5. THREE.JS 3D RENDERER
+    ============================================================================ */
+    const Renderer3D = {
+      scene: null, camera: null, renderer: null, sunLight: null, ambientLight: null,
+      tileMeshes: [], buildingGroup: null, rainSystem: null, weather: 'Clear',
+      camAngle: Math.PI / 4, camDist: 58, camTarget: new THREE.Vector3(0, 0, 0),
+      raycaster: new THREE.Raycaster(), mouse: new THREE.Vector2(),
+
+      init() {
+        const container = document.getElementById('canvas-container');
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x0f172a);
+        this.scene.fog = new THREE.FogExp2(0x0f172a, 0.0065);
+
+        this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.5, 400);
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.shadowMap.enabled = true;
+        container.appendChild(this.renderer.domElement);
+
+        this.ambientLight = new THREE.AmbientLight(0x94a3b8, 0.65);
+        this.scene.add(this.ambientLight);
+
+        this.sunLight = new THREE.DirectionalLight(0xfffbeb, 1.15);
+        this.sunLight.position.set(45, 70, 35);
+        this.sunLight.castShadow = true;
+        this.sunLight.shadow.mapSize.set(2048, 2048);
+        this.scene.add(this.sunLight);
+
+        this.buildingGroup = new THREE.Group();
+        this.scene.add(this.buildingGroup);
+
+        this.initRain();
+        this.rebuildWorld();
+        this.bindEvents();
+      },
+      initRain() {
+        const geo = new THREE.BufferGeometry();
+        const count = 1200;
+        const pos = new Float32Array(count * 3);
+        for (let i = 0; i < count * 3; i += 3) {
+          pos[i] = (Math.random() - 0.5) * 110;
+          pos[i + 1] = Math.random() * 45;
+          pos[i + 2] = (Math.random() - 0.5) * 110;
+        }
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        this.rainSystem = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0x7dd3fc, size: 0.25, transparent: true, opacity: 0.65 }));
+        this.rainSystem.visible = false;
+        this.scene.add(this.rainSystem);
+      },
+      cycleWeather() {
+        const modes = ['Clear', 'Overcast', 'Rain'];
+        this.weather = modes[(modes.indexOf(this.weather) + 1) % modes.length];
+        document.getElementById('btn-weather').textContent = (this.weather === 'Clear' ? '☀️ ' : this.weather === 'Overcast' ? '☁️ ' : '🌧️ ') + this.weather;
+        this.rainSystem.visible = this.weather === 'Rain';
+        this.sunLight.intensity = this.weather === 'Clear' ? 1.15 : this.weather === 'Overcast' ? 0.65 : 0.45;
+      },
+      rebuildWorld() {
+        this.tileMeshes.forEach(m => this.scene.remove(m));
+        this.tileMeshes = [];
+        const half = (Config.GRID_SIZE * Config.TILE_SIZE) / 2;
+
+        for (let z = 0; z < Config.GRID_SIZE; z++) {
+          for (let x = 0; x < Config.GRID_SIZE; x++) {
+            const tile = WorldGrid.tiles[z][x];
+            const isWater = tile.terrain === 'water';
+            const geom = new THREE.BoxGeometry(Config.TILE_SIZE - 0.08, isWater ? 0.25 : 0.4, Config.TILE_SIZE - 0.08);
+            const mat = new THREE.MeshStandardMaterial({
+              color: isWater ? 0x0284c7 : ((x + z) % 2 === 0 ? 0x15803d : 0x166534),
+              roughness: isWater ? 0.2 : 0.85
+            });
+            const mesh = new THREE.Mesh(geom, mat);
+            mesh.position.set(x * Config.TILE_SIZE - half + Config.TILE_SIZE / 2, isWater ? -0.08 : 0, z * Config.TILE_SIZE - half + Config.TILE_SIZE / 2);
+            mesh.receiveShadow = true;
+            mesh.userData = { gx: x, gz: z };
+            this.scene.add(mesh);
+            this.tileMeshes.push(mesh);
+          }
+        }
+        this.rebuildBuildings();
+      },
+      rebuildBuildings() {
+        while (this.buildingGroup.children.length) this.buildingGroup.remove(this.buildingGroup.children[0]);
+        const half = (Config.GRID_SIZE * Config.TILE_SIZE) / 2;
+
+        for (let z = 0; z < Config.GRID_SIZE; z++) {
+          for (let x = 0; x < Config.GRID_SIZE; x++) {
+            const tile = WorldGrid.tiles[z][x];
+            if (!tile.building) continue;
+            const cfg = Config.TOOLS[tile.building];
+            const wx = x * Config.TILE_SIZE - half + Config.TILE_SIZE / 2;
+            const wz = z * Config.TILE_SIZE - half + Config.TILE_SIZE / 2;
+
+            if (tile.building === 'road') {
+              const road = new THREE.Mesh(
+                new THREE.BoxGeometry(Config.TILE_SIZE, 0.14, Config.TILE_SIZE),
+                new THREE.MeshStandardMaterial({ color: tile.terrain === 'water' ? 0x64748b : 0x1e293b, roughness: this.weather === 'Rain' ? 0.25 : 0.8 })
+              );
+              road.position.set(wx, 0.22, wz);
+              road.receiveShadow = true;
+              this.buildingGroup.add(road);
+              continue;
+            }
+
+            const height = tile.building === 'park' ? 0.35 : (1.6 + tile.level * 1.45 + (['bank', 'trade', 'hospital', 'university'].includes(tile.building) ? 2.2 : 0));
+            const width = Config.TILE_SIZE * 0.72;
+            const mesh = new THREE.Mesh(
+              new THREE.BoxGeometry(width, height, width),
+              new THREE.MeshStandardMaterial({ color: cfg.color, roughness: 0.45 })
+            );
+            mesh.position.set(wx, height / 2 + 0.2, wz);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            this.buildingGroup.add(mesh);
+
+            // Roof accent / Helipad / Turbine blades
+            if (tile.building === 'wind') {
+              const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 4.2), new THREE.MeshStandardMaterial({ color: 0xf8fafc }));
+              mast.position.set(wx, 2.3, wz);
+              this.buildingGroup.add(mast);
+            }
+          }
+        }
+      },
+      bindEvents() {
+        let isDragging = false, prevX = 0;
+        const dom = this.renderer.domElement;
+        dom.addEventListener('mousedown', e => {
+          if (e.button === 2 || e.shiftKey) { isDragging = true; prevX = e.clientX; return; }
+          this.handleTileClick(e);
+        });
+        window.addEventListener('mousemove', e => {
+          if (isDragging) {
+            this.camAngle -= (e.clientX - prevX) * 0.007;
+            prevX = e.clientX;
+          }
+        });
+        window.addEventListener('mouseup', () => { isDragging = false; });
+        dom.addEventListener('contextmenu', e => e.preventDefault());
+        dom.addEventListener('wheel', e => {
+          this.camDist = Math.max(18, Math.min(95, this.camDist + e.deltaY * 0.04));
+        });
+        window.addEventListener('resize', () => {
+          this.camera.aspect = window.innerWidth / window.innerHeight;
+          this.camera.updateProjectionMatrix();
+          this.renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+      },
+      handleTileClick(e) {
+        this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        this.raycaster.setFromCamera(this.mouse, this.camera);
+
+        // Check NPC/Vehicle click first if inspecting
+        if (UIManager.selectedTool === 'inspect') {
+          const entityMeshes = [...EntityManager.npcs, ...EntityManager.vehicles].map(ent => ent.mesh);
+          const entHits = this.raycaster.intersectObjects(entityMeshes, true);
+          if (entHits.length > 0) {
+            let obj = entHits[0].object;
+            while (obj.parent && !entityMeshes.includes(obj)) obj = obj.parent;
+            const found = [...EntityManager.npcs, ...EntityManager.vehicles].find(ent => ent.mesh === obj);
+            if (found) return UIManager.showEntityInspector(found);
+          }
+        }
+
+        const hits = this.raycaster.intersectObjects(this.tileMeshes);
+        if (!hits.length) return;
+        const { gx, gz } = hits[0].object.userData;
+        const tile = WorldGrid.get(gx, gz);
+        const tool = UIManager.selectedTool;
+        const cfg = Config.TOOLS[tool];
+
+        if (tool === 'inspect') {
+          return UIManager.showTileInspector(tile);
+        }
+        if (tool === 'bulldoze') {
+          if (!tile.building) return;
+          if (EconomyEngine.cash < cfg.cost) return UIManager.toast('Not enough funds.');
+          EconomyEngine.cash -= cfg.cost;
+          tile.building = null;
+          tile.level = 1;
+          this.rebuildBuildings();
+          return;
+        }
+        if (tile.terrain === 'water' && tool !== 'road' && tool !== 'port') {
+          return UIManager.toast('Only Bridges (Roads) or Freight Ports can be built on water.');
+        }
+        if (tile.building) {
+          return UIManager.toast('Tile occupied — bulldoze first.');
+        }
+        if (EconomyEngine.cash < cfg.cost) {
+          return UIManager.toast('Insufficient treasury cash.');
+        }
+        EconomyEngine.cash -= cfg.cost;
+        tile.building = tool;
+        tile.level = 1;
+        this.rebuildBuildings();
+      },
+      updateCamera(dt, time) {
+        // Day/night cycle modulation
+        const dayPhase = (Math.sin(time * 0.08) + 1) / 2;
+        const skyColor = new THREE.Color().lerpColors(new THREE.Color(0x020617), new THREE.Color(0x38bdf8), dayPhase * 0.45 + 0.08);
+        this.scene.background = skyColor;
+        this.scene.fog.color = skyColor;
+        this.sunLight.intensity = (0.25 + dayPhase * 1.05) * (this.weather === 'Clear' ? 1 : 0.6);
+
+        if (this.rainSystem.visible) {
+          const pos = this.rainSystem.geometry.attributes.position.array;
+          for (let i = 1; i < pos.length; i += 3) {
+            pos[i] -= 28 * dt;
+            if (pos[i] < 0) pos[i] = 45;
+          }
+          this.rainSystem.geometry.attributes.position.needsUpdate = true;
+        }
+
+        if (EntityManager.followedEntity) {
+          const targetPos = EntityManager.followedEntity.mesh.position;
+          this.camera.position.lerp(new THREE.Vector3(targetPos.x + 6, 4.5, targetPos.z + 6), 0.1);
+          this.camera.lookAt(targetPos.x, 1, targetPos.z);
+        } else {
+          const cx = this.camTarget.x + Math.cos(this.camAngle) * this.camDist;
+          const cz = this.camTarget.z + Math.sin(this.camAngle) * this.camDist;
+          this.camera.position.set(cx, this.camDist * 0.72, cz);
+          this.camera.lookAt(this.camTarget);
+        }
+        this.renderer.render(this.scene, this.camera);
+      }
+    };
+
+    /* ============================================================================
+       6. UI MANAGER & PERSISTENCE
+    ============================================================================ */
+    const UIManager = {
+      activeCat: 'Transit',
+      selectedTool: 'road',
+      simSpeed: 1,
+      init() {
+        this.renderCategories();
+        this.renderTools();
+        document.getElementById('btn-economy').onclick = () => this.toggleEconomy(true);
+        document.getElementById('btn-weather').onclick = () => Renderer3D.cycleWeather();
+        document.getElementById('btn-speed').onclick = () => {
+          this.simSpeed = this.simSpeed === 1 ? 2 : this.simSpeed === 2 ? 0 : 1;
+          document.getElementById('btn-speed').textContent = this.simSpeed === 0 ? '⏸️ Paused' : `▶️ ${this.simSpeed}x`;
+        };
+        document.getElementById('btn-save').onclick = () => Persistence.saveLocal();
+        document.getElementById('btn-export').onclick = () => Persistence.exportJSON();
+        document.getElementById('btn-reset').onclick = () => {
+          WorldGrid.init('riverside');
+          Renderer3D.rebuildWorld();
+          EntityManager.spawnInitial(Renderer3D.scene);
+          this.toast('Loaded Fresh Riverside Metro');
+        };
+      },
+      renderCategories() {
+        const el = document.getElementById('cat-tabs');
+        el.innerHTML = Config.CATEGORIES.map(c =>
+          `<button class="cat-tab ${c === this.activeCat ? 'active' : ''}" onclick="UIManager.setCategory('${c}')">${c}</button>`
+        ).join('');
+      },
+      setCategory(cat) {
+        this.activeCat = cat;
+        this.renderCategories();
+        this.renderTools();
+      },
+      renderTools() {
+        const el = document.getElementById('tools-row');
+        const entries = Object.entries(Config.TOOLS).filter(([, v]) => v.cat === this.activeCat);
+        el.innerHTML = entries.map(([key, v]) => `
+          <button class="tool-btn ${this.selectedTool === key ? 'selected' : ''}" onclick="UIManager.selectTool('${key}')">
+            <span class="tool-icon">${v.icon}</span>
+            <span class="tool-name">${v.name}</span>
+            <span class="tool-cost">${v.cost > 0 ? '$' + v.cost.toLocaleString() : 'Free'}</span>
+          </button>
+        `).join('');
+      },
+      selectTool(key) {
+        this.selectedTool = key;
+        this.renderTools();
+      },
+      toast(msg) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.style.opacity = '1';
+        clearTimeout(this._toastTimer);
+        this._toastTimer = setTimeout(() => { t.style.opacity = '0'; }, 2400);
+      },
+      showEntityInspector(ent) {
+        const insp = document.getElementById('inspector');
+        insp.style.display = 'flex';
+        document.getElementById('insp-title').textContent = ent.name;
+        document.getElementById('insp-body').innerHTML = `
+          <div class="insp-row"><span>Category</span><strong>${ent.kind}</strong></div>
+          ${ent.occupation ? `<div class="insp-row"><span>Occupation</span><strong>${ent.occupation}</strong></div>` : ''}
+          ${ent.income ? `<div class="insp-row"><span>Annual Income</span><strong>${ent.income}</strong></div>` : ''}
+          ${ent.activity ? `<div class="insp-row"><span>Status</span><strong>${ent.activity}</strong></div>` : ''}
+        `;
+        const followBtn = document.getElementById('insp-follow-btn');
+        followBtn.style.display = 'block';
+        followBtn.textContent = EntityManager.followedEntity === ent ? '🎥 Exit Follow Cam' : '🎥 Street Follow Cam';
+        followBtn.onclick = () => {
+          EntityManager.followedEntity = EntityManager.followedEntity === ent ? null : ent;
+          followBtn.textContent = EntityManager.followedEntity === ent ? '🎥 Exit Follow Cam' : '🎥 Street Follow Cam';
+        };
+      },
+      showTileInspector(tile) {
+        const insp = document.getElementById('inspector');
+        insp.style.display = 'flex';
+        document.getElementById('insp-follow-btn').style.display = 'none';
+        const cfg = tile.building ? Config.TOOLS[tile.building] : null;
+        document.getElementById('insp-title').textContent = cfg ? `${cfg.icon} ${cfg.name}` : `Terrain (${tile.x}, ${tile.z})`;
+        document.getElementById('insp-body').innerHTML = `
+          <div class="insp-row"><span>Coordinates</span><strong>(${tile.x}, ${tile.z})</strong></div>
+          <div class="insp-row"><span>Terrain</span><strong>${tile.terrain.toUpperCase()}</strong></div>
+          <div class="insp-row"><span>Development Tier</span><strong>Level ${tile.level}</strong></div>
+          <div class="insp-row"><span>Monthly Upkeep</span><strong>$${cfg ? cfg.upkeep : 0}/mo</strong></div>
+        `;
+      },
+      closeInspector() {
+        document.getElementById('inspector').style.display = 'none';
+        EntityManager.followedEntity = null;
+      },
+      toggleEconomy(show) {
+        document.getElementById('economy-modal').style.display = show ? 'flex' : 'none';
+        if (show) this.refreshEconomyModal();
+      },
+      refreshEconomyModal() {
+        document.getElementById('macro-summary').innerHTML = `
+          <strong>Sovereign Debt:</strong> $${EconomyEngine.debt.toLocaleString()} (Rating: <strong>${EconomyEngine.creditRating}</strong>)<br/>
+          <strong>Inflation Rate:</strong> ${EconomyEngine.inflation}% &nbsp;|&nbsp;
+          <strong>Unemployment:</strong> ${EconomyEngine.unemployment}%<br/>
+          <strong>Net Monthly Balance:</strong> $${EconomyEngine.netMonthly.toLocaleString()}/mo
+        `;
+        const list = document.getElementById('commodities-list');
+        list.innerHTML = EconomyEngine.commodities.map(c => {
+          const min = Math.min(...c.history), max = Math.max(...c.history);
+          const pts = c.history.map((v, i) => {
+            const x = (i / (c.history.length - 1)) * 90;
+            const y = 26 - ((v - min) / (max - min || 1)) * 22;
+            return `${x},${y}`;
+          }).join(' ');
+          return `
+            <div class="comm-card">
+              <div>
+                <div style="font-weight:700;font-size:0.84rem;">${c.name}</div>
+                <div style="font-size:0.75rem;color:#94a3b8;">Spot: <strong style="color:#38bdf8;">$${c.price}</strong> | Held: <strong>${c.owned}</strong></div>
+              </div>
+              <svg width="95" height="30"><polyline fill="none" stroke="#4ade80" stroke-width="2" points="${pts}"/></svg>
+              <div style="display:flex;gap:4px;">
+                <button class="hud-btn" onclick="EconomyEngine.tradeCommodity('${c.id}', 1)">Buy 10</button>
+                <button class="hud-btn" onclick="EconomyEngine.tradeCommodity('${c.id}', -1)">Sell 10</button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      },
+      updateHUD(stats) {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const m = months[EconomyEngine.monthIndex % 12];
+        const y = 2026 + Math.floor(EconomyEngine.monthIndex / 12);
+        document.getElementById('stat-cash').textContent = '$' + Math.round(EconomyEngine.cash).toLocaleString();
+        const netEl = document.getElementById('stat-net');
+        netEl.textContent = `(${EconomyEngine.netMonthly >= 0 ? '+' : ''}$${EconomyEngine.netMonthly.toLocaleString()}/mo)`;
+        netEl.className = EconomyEngine.netMonthly >= 0 ? 'pos' : 'neg';
+        document.getElementById('stat-pop').textContent = stats.pop.toLocaleString();
+        document.getElementById('stat-happy').textContent = stats.happy + '%';
+        document.getElementById('stat-power').textContent = `${stats.powerDemand}/${stats.powerSupply} MW`;
+        document.getElementById('stat-water').textContent = `${stats.waterDemand}/${stats.waterSupply} kL`;
+        document.getElementById('stat-gdp').textContent = '$' + EconomyEngine.gdpPerCapita.toLocaleString();
+        document.getElementById('stat-date').textContent = `${m} ${y}`;
+      }
+    };
+
+    const Persistence = {
+      saveLocal() {
+        const payload = {
+          cash: EconomyEngine.cash,
+          debt: EconomyEngine.debt,
+          monthIndex: EconomyEngine.monthIndex,
+          tiles: WorldGrid.tiles.map(r => r.map(t => ({ terrain: t.terrain, building: t.building, level: t.level })))
+        };
+        localStorage.setItem('metroforge_3d_save', JSON.stringify(payload));
+        UIManager.toast('City saved to browser storage.');
+      },
+      exportJSON() {
+        const payload = {
+          game: 'MetroForge 3D',
+          exportedAt: new Date().toISOString(),
+          economy: { cash: EconomyEngine.cash, debt: EconomyEngine.debt, gdpPerCapita: EconomyEngine.gdpPerCapita },
+          grid: WorldGrid.tiles.map(r => r.map(t => ({ x: t.x, z: t.z, terrain: t.terrain, building: t.building, level: t.level })))
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'metroforge_city_export.json';
+        a.click();
+        UIManager.toast('Exported metroforge_city_export.json');
+      }
+    };
+
+    /* ============================================================================
+       7. MAIN SIMULATION LOOP
+    ============================================================================ */
+    WorldGrid.init('riverside');
+    Renderer3D.init();
+    EntityManager.spawnInitial(Renderer3D.scene);
+    UIManager.init();
+
+    let lastTime = performance.now();
+    let monthTimer = 0;
+
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const dt = Math.min(0.05, (now - lastTime) / 1000) * UIManager.simSpeed;
+      lastTime = now;
+
+      if (UIManager.simSpeed > 0) {
+        EntityManager.update(dt, now / 1000);
+        monthTimer += dt;
+        if (monthTimer >= 5.0) {
+          monthTimer = 0;
+          // Organic building upgrades when utilities & happiness are healthy
+          const stats = WorldGrid.computeStats();
+          if (stats.powerOk && stats.waterOk && stats.happy >= 70) {
+            const candidates = [];
+            WorldGrid.tiles.forEach(r => r.forEach(t => {
+              if (['res', 'com', 'ind'].includes(t.building) && t.level < 4) candidates.push(t);
+            }));
+            if (candidates.length && Math.random() < 0.45) {
+              const pick = candidates[Math.floor(Math.random() * candidates.length)];
+              pick.level++;
+              Renderer3D.rebuildBuildings();
+            }
+          }
+          EconomyEngine.tickMonth(stats);
+          if (document.getElementById('economy-modal').style.display === 'flex') {
+            UIManager.refreshEconomyModal();
+          }
+        }
+      }
+
+      UIManager.updateHUD(WorldGrid.computeStats());
+      Renderer3D.updateCamera(dt, now / 1000);
+    }
+
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
